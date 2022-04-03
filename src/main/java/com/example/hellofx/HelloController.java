@@ -28,13 +28,12 @@ public class HelloController {
 
         MultiDatePicker multiDatePicker = new MultiDatePicker();
         multiDatePicker.setValue(LocalDate.now());
-        multiDatePicker.withRangeSelectionMode();
 
         dialogPane.setContent(multiDatePicker.getPopupContent());
         dialogPane.getButtonTypes().add(ButtonType.APPLY);
 
         Optional result = dialog.showAndWait();
-        welcomeText.setText(result.toString());
+        welcomeText.setText(multiDatePicker.getSelectedDates());
 
     }
 
