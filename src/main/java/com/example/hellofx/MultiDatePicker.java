@@ -1,5 +1,6 @@
 package com.example.hellofx;
 
+import com.sun.javafx.scene.control.DatePickerContent;
 import javafx.collections.FXCollections;
 import javafx.scene.Node;
 import javafx.scene.control.*;
@@ -23,36 +24,48 @@ import javafx.scene.input.MouseEvent;
 public class MultiDatePicker extends DatePicker {
 
     private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd");
-    private final ObservableSet<LocalDate> selectedDates = FXCollections.observableSet(new TreeSet<>());
+    private ObservableSet<LocalDate> selectedDates = FXCollections.observableSet(new TreeSet<>());
+    private LocalDate lastSelectedDate = null;
 
   public MultiDatePicker() {
         super();
-        setUpDatePicker();
-    }
+        setSkin(new DatePickerSkin(this));
+        onRangeSelectionMode();
 
-    public MultiDatePicker withRangeSelectionMode() {
+  }
 
+    public MultiDatePicker onRangeSelectionMode() {
 
         EventHandler<MouseEvent> mouseClickedEventHandler = (MouseEvent clickEvent) -> {
             if (clickEvent.getButton() == MouseButton.PRIMARY) {
-                if (!this.selectedDates.contains(this.getValue())) {
-                    this.selectedDates.add(this.getValue());
 
-                    LocalDate firstDate = (LocalDate) this.selectedDates.toArray()[0];
-                    LocalDate lastDate = (LocalDate) this.selectedDates.toArray()[this.selectedDates.size() - 1];
-                    this.selectedDates.addAll(getRangeGaps(firstDate, lastDate));
+                if (lastSelectedDate == null) {
+                    this.selectedDates.add(this.getValue());
                 } else {
-                    this.selectedDates.remove(this.getValue());
-                    this.selectedDates.removeAll(getTailEndDatesToRemove(this.selectedDates, this.getValue()));
-                    this.setValue(getClosestDateInTree(new TreeSet<>(this.selectedDates), this.getValue()));
+                    this.selectedDates.clear();
+
+                    LocalDate startDate;
+                    LocalDate endDate;
+
+                    if (this.getValue().isAfter(lastSelectedDate)) {
+                        startDate = lastSelectedDate;
+                        endDate = this.getValue();
+                    } else {
+                        startDate = this.getValue();
+                        endDate = lastSelectedDate;
+                    }
+
+                    do {
+                        selectedDates.add(startDate);
+                        startDate = startDate.plusDays(1);
+                    } while (!startDate.isAfter(endDate));
                 }
+
+                this.lastSelectedDate = this.getValue();
             }
 
-
-      //       MultiDatePicker.this.show();
-
-//            DatePickerContent datePickerContent = (DatePickerContent)getPopupContent();
-//            datePickerContent.updateGrid();
+            DatePickerContent datePickerContent = (DatePickerContent)getPopupContent();
+            datePickerContent.updateDayCells();
 
             clickEvent.consume();
         };
@@ -84,140 +97,12 @@ public class MultiDatePicker extends DatePicker {
         return this;
     }
 
-    public ObservableSet<LocalDate> getSelectedDates() {
-        return this.selectedDates;
-    }
-
-    private void setUpDatePicker() {
-        setSkin(new DatePickerSkin(this));
-
-        this.setConverter(new StringConverter<LocalDate>() {
-            @Override
-            public String toString(LocalDate date) {
-                return (date == null) ? "" : DATE_FORMAT.format(date);
-            }
-
-            @Override
-            public LocalDate fromString(String string) {
-                return ((string == null) || string.isEmpty()) ? null : LocalDate.parse(string, DATE_FORMAT);
-            }
-        });
-
-        EventHandler<MouseEvent> mouseClickedEventHandler = (MouseEvent clickEvent) -> {
-            if (clickEvent.getButton() == MouseButton.PRIMARY) {
-                if (!this.selectedDates.contains(this.getValue())) {
-                    this.selectedDates.add(this.getValue());
-                } else {
-                    this.selectedDates.remove(this.getValue());
-                    this.setValue(getClosestDateInTree(new TreeSet<>(this.selectedDates), this.getValue()));
-                }
-            }
-
-            MultiDatePicker.this.show();
-
-            clickEvent.consume();
-        };
-
-        this.setDayCellFactory((DatePicker param) -> new DateCell() {
-            @Override
-            public void updateItem(LocalDate item, boolean empty) {
-                super.updateItem(item, empty);
-                //...
-                if (item != null && !empty) {
-                    //...
-                    addEventHandler(MouseEvent.MOUSE_CLICKED, mouseClickedEventHandler);
-                } else {
-                    //...
-                    removeEventHandler(MouseEvent.MOUSE_CLICKED, mouseClickedEventHandler);
-                }
-
-                if (selectedDates.contains(item)) {
-                    setStyle("-fx-background-color: rgba(3, 169, 244, 0.7);");
-                } else {
-                    setStyle(null);
-                }
-            }
-        });
-    }
-
-    private static Set<LocalDate> getTailEndDatesToRemove(Set<LocalDate> dates, LocalDate date)
-    {
-
-        TreeSet<LocalDate> tempTree = new TreeSet<>(dates);
-        tempTree.add(date);
-        int higher = tempTree.tailSet(date).size();
-        int lower = tempTree.headSet(date).size();
-
-        if (lower <= higher) {
-            return tempTree.headSet(date);
-        } else if (lower > higher) {
-            return tempTree.tailSet(date);
-        } else {
-            return new TreeSet<>();
-        }
-    }
-
-    private static LocalDate getClosestDateInTree(TreeSet<LocalDate> dates, LocalDate date)
-    {
-        Long lower = null;
-        Long higher = null;
-
-        if (dates.isEmpty()) {
-            return null;
-        }
-
-        if (dates.size() == 1) {
-            return dates.first();
-        }
-
-        if (dates.lower(date) != null)
-        {
-            lower = Math.abs(DAYS.between(date, dates.lower(date)));
-        }
-        if (dates.higher(date) != null)
-        {
-            higher = Math.abs(DAYS.between(date, dates.higher(date)));
-        }
-
-        if (lower == null)
-        {
-            return dates.higher(date);
-        } else if (higher == null)
-        {
-            return dates.lower(date);
-        } else if (lower <= higher)
-        {
-            return dates.lower(date);
-        } else if (lower > higher)
-        {
-            return dates.higher(date);
-        } else
-        {
-            return null;
-        }
-    }
-
-    private static Set<LocalDate> getRangeGaps(LocalDate min, LocalDate max)
-    {
-        Set<LocalDate> rangeGaps = new LinkedHashSet<>();
-
-        if (min == null || max == null)
-        {
-            return rangeGaps;
-        }
-
-        LocalDate lastDate = min.plusDays(1);
-        while (lastDate.isAfter(min) && lastDate.isBefore(max))
-        {
-            rangeGaps.add(lastDate);
-            lastDate = lastDate.plusDays(1);
-
-        }
-        return rangeGaps;
-    }
 
     public Node getPopupContent() {
         return ((DatePickerSkin)this.getSkin()).getPopupContent();
     }
 
+    public String getSelectedDates() {
+        return this.selectedDates.toString();
+    }
 }
